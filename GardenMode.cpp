@@ -75,16 +75,23 @@ void GardenMode::LoadGameObjects() {
 			player = Player(&transform);
 			default_rot = player.transform->rotation;
 		}
-		if (transform.name == "dirt") {
+		else if (transform.name == "dirt") {
 			glm::vec3 pos = transform.position;
 			walls[0] = pos.x - 150.f;
 			walls[1] = pos.x + 150.f;
 			walls[2] = pos.y - 100.f;
 			walls[3] = pos.y + 100.f;
 		}
+		else if (transform.name.substr(0, 7) == "cabbage") {
+			foods.push_back(Food(&transform, CABBAGE_SIZE, CABBAGE_EATTIME));
+		}
+		else if (transform.name.substr(0, 6) == "carrot") {
+			foods.push_back(Food(&transform, CARROT_SIZE, CARROT_EATTIME));
+		}
 	}
 
 	assert(player.transform != nullptr);
+	assert(foods.size() == 20);
 }
 
 bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
@@ -136,28 +143,6 @@ void GardenMode::update(float elapsed) {
 	//move sound to follow leg tip position:
 	//leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
 
-	//move camera:
-	//{
-
-	//	//combine inputs into a move:
-	//	constexpr float PlayerSpeed = 30.0f;
-	//	glm::vec2 move = glm::vec2(0.0f);
-	//	if (left.pressed && !right.pressed) move.x =-1.0f;
-	//	if (!left.pressed && right.pressed) move.x = 1.0f;
-	//	if (down.pressed && !up.pressed) move.y =-1.0f;
-	//	if (!down.pressed && up.pressed) move.y = 1.0f;
-
-	//	//make it so that moving diagonally doesn't go faster:
-	//	if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
-
-	//	glm::mat4x3 frame = camera->transform->make_local_to_parent();
-	//	glm::vec3 right = frame[0];
-	//	//glm::vec3 up = frame[1];
-	//	glm::vec3 forward = -frame[2];
-
-	//	camera->transform->position += move.x * right + move.y * forward;
-	//}
-
 	{ //update listener to camera position:
 		glm::mat4x3 frame = camera->transform->make_local_to_parent();
 		glm::vec3 right = frame[0];
@@ -188,7 +173,11 @@ void GardenMode::UpdatePlayerMovement(float elapsed) {
 	}
 
 	glm::vec3 movement = glm::vec3(player_move.x, player_move.y, 0);
-	player.transform->position += movement;
+	glm::vec2 mov = glm::vec2(player.transform->position.x + player_move.x, player.transform->position.y + player_move.y);
+	//bool res = CollisionTest(mov);
+	//std::cout << res << std::endl;
+	if (!CollisionTest(mov))
+		player.transform->position += movement;
 
 	up.downs = 0;
 	down.downs = 0;
@@ -206,6 +195,19 @@ void GardenMode::UpdatePlayerMovement(float elapsed) {
 	pos.x = std::min(pos.x, walls[1] - player.size.x * 0.5f);
 	pos.y = std::max(pos.y, walls[2] + player.size.x * 0.5f);
 	pos.y = std::min(pos.y, walls[3] - player.size.x * 0.5f);
+}
+
+bool GardenMode::CollisionTest(glm::vec2 pos) {
+	for (auto& food : foods) {
+		float min_dist = player.size.x * 0.5f + food.size.x * 0.5f;
+		//std::cout << min_dist << std::endl;
+		glm::vec2 position = food.transform->position;
+		//if (food.transform->name == "cabbage.002")
+		//	std::cout << position.x << " " << position.y << std::endl;
+		if (glm::distance(position, pos) <= min_dist)
+			return true;
+	}
+	return false;
 }
 
 void GardenMode::draw(glm::uvec2 const &drawable_size) {

@@ -9,15 +9,28 @@
 #include <deque>
 
 
-#define PLAYER_SPEED 100.0f
+#define PLAYER_SPEED 100.f
+#define CABBAGE_SIZE glm::vec3(35.f, 31.f, 41.f)
+#define CARROT_SIZE glm::vec3(5.f, 50.f, 7.f)
+#define CABBAGE_EATTIME 5.f
+#define CARROT_EATTIME 2.f
+
 
 struct GardenMode : Mode {
 
 	struct Player {
 		Scene::Transform* transform = nullptr;
-		glm::vec3 size = glm::vec3(42.f, 15.f, 13.f);
+		glm::vec3 size = glm::vec3(20.f, 10.f, 10.f);
 		Player() {}
 		Player(Scene::Transform* trans) : transform(trans) {}
+	};
+
+	struct Food {
+		Scene::Transform* transform = nullptr;
+		glm::vec3 size = glm::vec3(30.f, 31.f, 41.f);
+		float lifetime = 0.f;
+		Food() {}
+		Food(Scene::Transform* trans, glm::vec3 food_size, float t) : transform(trans), size(food_size), lifetime(t) {}
 	};
 
 	GardenMode();
@@ -42,10 +55,13 @@ struct GardenMode : Mode {
 	Player player;
 	glm::quat default_rot;
 	float walls[4];
+
+	std::vector<Food> foods;
 	//glm::vec3 get_leg_tip_position();
 
 	void LoadGameObjects();
 	void UpdatePlayerMovement(float elapsed);
+	bool CollisionTest(glm::vec2 pos);
 
 	//music coming from the tip of the leg (as a demonstration):
 	std::shared_ptr< Sound::PlayingSample > leg_tip_loop;
