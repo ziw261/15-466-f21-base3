@@ -55,6 +55,8 @@ GardenMode::GardenMode() : scene(*hexapod_scene) {
 	//upper_leg_base_rotation = upper_leg->rotation;
 	//lower_leg_base_rotation = lower_leg->rotation;
 
+	LoadGameObjects();
+
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
@@ -65,6 +67,19 @@ GardenMode::GardenMode() : scene(*hexapod_scene) {
 }
 
 GardenMode::~GardenMode() {
+}
+
+void GardenMode::LoadGameObjects() {
+	for (auto& transform : scene.transforms) {
+		if (transform.name == "opossum") {
+			player = Player(&transform);
+			glm::quat rot = glm::angleAxis(glm::radians(-90.f), glm::vec3(0.f, 0.f, 1.f));
+			player.transform->rotation = rot * player.transform->rotation;
+			default_rot = player.transform->rotation;
+		}
+	}
+
+	assert(player.transform != nullptr);
 }
 
 bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
@@ -104,24 +119,6 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 			down.pressed = false;
 			return true;
 		}
-	} else if (evt.type == SDL_MOUSEBUTTONDOWN) {
-		if (SDL_GetRelativeMouseMode() == SDL_FALSE) {
-			SDL_SetRelativeMouseMode(SDL_TRUE);
-			return true;
-		}
-	} else if (evt.type == SDL_MOUSEMOTION) {
-		if (SDL_GetRelativeMouseMode() == SDL_TRUE) {
-			glm::vec2 motion = glm::vec2(
-				evt.motion.xrel / float(window_size.y),
-				-evt.motion.yrel / float(window_size.y)
-			);
-			camera->transform->rotation = glm::normalize(
-				camera->transform->rotation
-				* glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f))
-				* glm::angleAxis(motion.y * camera->fovy, glm::vec3(1.0f, 0.0f, 0.0f))
-			);
-			return true;
-		}
 	}
 
 	return false;
@@ -129,47 +126,32 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 
 void GardenMode::update(float elapsed) {
 
-	//slowly rotates through [0,1):
-	//wobble += elapsed / 10.0f;
-	//wobble -= std::floor(wobble);
-
-	//hip->rotation = hip_base_rotation * glm::angleAxis(
-	//	glm::radians(5.0f * std::sin(wobble * 2.0f * float(M_PI))),
-	//	glm::vec3(0.0f, 1.0f, 0.0f)
-	//);
-	//upper_leg->rotation = upper_leg_base_rotation * glm::angleAxis(
-	//	glm::radians(7.0f * std::sin(wobble * 2.0f * 2.0f * float(M_PI))),
-	//	glm::vec3(0.0f, 0.0f, 1.0f)
-	//);
-	//lower_leg->rotation = lower_leg_base_rotation * glm::angleAxis(
-	//	glm::radians(10.0f * std::sin(wobble * 3.0f * 2.0f * float(M_PI))),
-	//	glm::vec3(0.0f, 0.0f, 1.0f)
-	//);
+	UpdatePlayerMovement(elapsed);
 
 	//move sound to follow leg tip position:
 	//leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
 
 	//move camera:
-	{
+	//{
 
-		//combine inputs into a move:
-		constexpr float PlayerSpeed = 30.0f;
-		glm::vec2 move = glm::vec2(0.0f);
-		if (left.pressed && !right.pressed) move.x =-1.0f;
-		if (!left.pressed && right.pressed) move.x = 1.0f;
-		if (down.pressed && !up.pressed) move.y =-1.0f;
-		if (!down.pressed && up.pressed) move.y = 1.0f;
+	//	//combine inputs into a move:
+	//	constexpr float PlayerSpeed = 30.0f;
+	//	glm::vec2 move = glm::vec2(0.0f);
+	//	if (left.pressed && !right.pressed) move.x =-1.0f;
+	//	if (!left.pressed && right.pressed) move.x = 1.0f;
+	//	if (down.pressed && !up.pressed) move.y =-1.0f;
+	//	if (!down.pressed && up.pressed) move.y = 1.0f;
 
-		//make it so that moving diagonally doesn't go faster:
-		if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
+	//	//make it so that moving diagonally doesn't go faster:
+	//	if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
 
-		glm::mat4x3 frame = camera->transform->make_local_to_parent();
-		glm::vec3 right = frame[0];
-		//glm::vec3 up = frame[1];
-		glm::vec3 forward = -frame[2];
+	//	glm::mat4x3 frame = camera->transform->make_local_to_parent();
+	//	glm::vec3 right = frame[0];
+	//	//glm::vec3 up = frame[1];
+	//	glm::vec3 forward = -frame[2];
 
-		camera->transform->position += move.x * right + move.y * forward;
-	}
+	//	camera->transform->position += move.x * right + move.y * forward;
+	//}
 
 	{ //update listener to camera position:
 		glm::mat4x3 frame = camera->transform->make_local_to_parent();
@@ -177,12 +159,39 @@ void GardenMode::update(float elapsed) {
 		glm::vec3 at = frame[3];
 		Sound::listener.set_position_right(at, right, 1.0f / 60.0f);
 	}
+}
 
-	//reset button press counters:
-	left.downs = 0;
-	right.downs = 0;
+void GardenMode::UpdatePlayerMovement(float elapsed) {
+	glm::vec2 player_move = glm::vec2(0.0f);
+	if (up.pressed) player_move.y += 1.0f;
+	if (left.pressed) player_move.x -= 1.0f;
+	if (down.pressed) player_move.y -= 1.0f;
+	if (right.pressed) player_move.x += 1.0f;
+
+	if (player_move != glm::vec2(0.0f)) {
+		player_move = glm::normalize(player_move) * PLAYER_SPEED * elapsed;
+		if (player_move.x > 0 && player_move.y > 0)
+			player.transform->rotation = glm::angleAxis(glm::radians(-45.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
+		if (player_move.x > 0 && player_move.y < 0)
+			player.transform->rotation = glm::angleAxis(glm::radians(-135.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
+		if (player_move.x < 0 && player_move.y > 0)
+			player.transform->rotation = glm::angleAxis(glm::radians(45.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
+		if (player_move.x < 0 && player_move.y < 0)
+			player.transform->rotation = glm::angleAxis(glm::radians(135.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
+		if (player_move.x < 0 && !player_move.y)
+			player.transform->rotation = glm::angleAxis(glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
+
+
+	}
+
+	glm::vec3 movement = glm::vec3(player_move.x, player_move.y, 0);
+	player.transform->position += movement;
+
 	up.downs = 0;
 	down.downs = 0;
+	left.downs = 0;
+	right.downs = 0;
+
 }
 
 void GardenMode::draw(glm::uvec2 const &drawable_size) {
