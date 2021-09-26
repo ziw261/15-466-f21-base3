@@ -15,6 +15,7 @@ struct GardenMode : Mode {
 
 	struct Player {
 		Scene::Transform* transform = nullptr;
+		glm::vec3 size = glm::vec3(42.f, 15.f, 13.f);
 		Player() {}
 		Player(Scene::Transform* trans) : transform(trans) {}
 	};
@@ -40,7 +41,7 @@ struct GardenMode : Mode {
 
 	Player player;
 	glm::quat default_rot;
-
+	float walls[4];
 	//glm::vec3 get_leg_tip_position();
 
 	void LoadGameObjects();

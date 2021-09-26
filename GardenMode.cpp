@@ -73,9 +73,14 @@ void GardenMode::LoadGameObjects() {
 	for (auto& transform : scene.transforms) {
 		if (transform.name == "opossum") {
 			player = Player(&transform);
-			glm::quat rot = glm::angleAxis(glm::radians(-90.f), glm::vec3(0.f, 0.f, 1.f));
-			player.transform->rotation = rot * player.transform->rotation;
 			default_rot = player.transform->rotation;
+		}
+		if (transform.name == "dirt") {
+			glm::vec3 pos = transform.position;
+			walls[0] = pos.x - 150.f;
+			walls[1] = pos.x + 150.f;
+			walls[2] = pos.y - 100.f;
+			walls[3] = pos.y + 100.f;
 		}
 	}
 
@@ -170,18 +175,16 @@ void GardenMode::UpdatePlayerMovement(float elapsed) {
 
 	if (player_move != glm::vec2(0.0f)) {
 		player_move = glm::normalize(player_move) * PLAYER_SPEED * elapsed;
-		if (player_move.x > 0 && player_move.y > 0)
-			player.transform->rotation = glm::angleAxis(glm::radians(-45.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
-		if (player_move.x > 0 && player_move.y < 0)
-			player.transform->rotation = glm::angleAxis(glm::radians(-135.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
-		if (player_move.x < 0 && player_move.y > 0)
-			player.transform->rotation = glm::angleAxis(glm::radians(45.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
-		if (player_move.x < 0 && player_move.y < 0)
-			player.transform->rotation = glm::angleAxis(glm::radians(135.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
-		if (player_move.x < 0 && !player_move.y)
-			player.transform->rotation = glm::angleAxis(glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
 
-
+		// Player rotation with movement
+		if (player_move.x && player_move.y) {
+			float rot_val = ((player_move.x < 0) - (player_move.x > 0)) * (90.f * (player_move.y < 0) + 45);
+			player.transform->rotation = glm::angleAxis(glm::radians(rot_val), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
+		}
+		else if (!player_move.y)
+			player.transform->rotation = glm::angleAxis(glm::radians(((player_move.x < 0) - (player_move.x > 0)) * 90.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
+		else if (!player_move.x)
+			player.transform->rotation = glm::angleAxis(glm::radians((player_move.y < 0) * 180.f), glm::vec3(0.f, 0.f, 1.f)) * default_rot;
 	}
 
 	glm::vec3 movement = glm::vec3(player_move.x, player_move.y, 0);
@@ -192,6 +195,17 @@ void GardenMode::UpdatePlayerMovement(float elapsed) {
 	left.downs = 0;
 	right.downs = 0;
 
+	//clamp player position value:
+	auto& pos = player.transform->position;
+	/*std::cout << walls[0] << " " <<
+		walls[1] << " " <<
+		walls[2] << " " <<
+		walls[3] << " " << std::endl;
+	std::cout << pos.x << " " << pos.y << std::endl;*/
+	pos.x = std::max(pos.x, walls[0] + player.size.x * 0.5f);
+	pos.x = std::min(pos.x, walls[1] - player.size.x * 0.5f);
+	pos.y = std::max(pos.y, walls[2] + player.size.x * 0.5f);
+	pos.y = std::min(pos.y, walls[3] - player.size.x * 0.5f);
 }
 
 void GardenMode::draw(glm::uvec2 const &drawable_size) {
