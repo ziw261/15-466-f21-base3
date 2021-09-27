@@ -1,8 +1,8 @@
-# (TODO: your game's title)
+# One two three, let's eat
 
 Author: Zi Wang
 
-Design: (TODO: In two sentences or fewer, describe what is new and interesting about your game.)
+Design: You have to listen carefully about the footsteps to determine if you should eat the food or hide in the dirt.
 
 Screen Shot:
 
@@ -10,11 +10,12 @@ Screen Shot:
 
 How To Play:
 
-(TODO: describe the controls and (if needed) goals/strategy.)
+Use WASD to control the mouse, and press space to eat, return to hide in the dirt.
 
 Sources: 
 
 "Footsteps_Walking Boot_Mud and Twigs.wav" by omnisounddesign of Freesound.org
+"Chewing, Carrot, A.wav" by InspectorJ (www.jshaw.co.uk) of Freesound.org
 
 
 This game was built with [NEST](NEST.md).

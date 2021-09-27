@@ -49,7 +49,8 @@ struct GardenMode : Mode {
 
 	enum class AudioStatus {
 		None,
-		Footsteps
+		Footsteps,
+		Eat
 	};
 
 	GardenMode();
@@ -85,6 +86,9 @@ struct GardenMode : Mode {
 	std::vector<Food> foods;
 	glm::vec3 footsteps_pos = glm::vec3(walls[0] + FOOTSTEP_START, 30.f, 16.5f);
 
+	//light:
+	Scene::Light* light = nullptr;
+
 	void LoadGameObjects();
 	void UpdatePlayerMovement(float elapsed);
 	void UpdateEating(float elapsed);
@@ -97,8 +101,9 @@ struct GardenMode : Mode {
 	void UpdateGameStatus(float elapsed);
 	glm::vec3 get_foot_position();
 
-	//music coming from the tip of the leg (as a demonstration):
+	//audio
 	std::shared_ptr< Sound::PlayingSample > footsteps;
+	std::shared_ptr< Sound::PlayingSample > eatsfx;
 	
 	//camera:
 	Scene::Camera *camera = nullptr;

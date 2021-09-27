@@ -43,6 +43,10 @@ Load< Sound::Sample > Footsteps(LoadTagDefault, []() -> Sound::Sample const * {
 	return new Sound::Sample(data_path("Footsteps.opus"));
 });
 
+Load< Sound::Sample > EatSFX(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("Eat.opus"));
+});
+
 GardenMode::GardenMode() : scene(*hexapod_scene) {
 
 	LoadGameObjects();
@@ -50,6 +54,9 @@ GardenMode::GardenMode() : scene(*hexapod_scene) {
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
+
+	light = &scene.lights.front();
+	assert(light != nullptr);
 }
 
 GardenMode::~GardenMode() {
@@ -58,9 +65,21 @@ GardenMode::~GardenMode() {
 void GardenMode::PlayAudio(AudioStatus as, bool to_start) {
 	if (as == AudioStatus::Footsteps) {
 		if (to_start)
-			footsteps = Sound::loop_3D(*Footsteps, 0.3f, get_foot_position(), 3.0f);
+			footsteps = Sound::loop_3D(*Footsteps, 0.5f, get_foot_position(), 100.0f);
 		else
 			footsteps->stop();
+	}
+	else if (as == AudioStatus::Eat) {
+		static bool is_eatsfx_playing = false;
+		if (to_start && !is_eatsfx_playing) {
+			eatsfx = Sound::loop_3D(*EatSFX, 0.4f, camera->transform->position, 5.0f);
+			is_eatsfx_playing = true;
+		}
+		else if(!to_start && is_eatsfx_playing){
+			if (eatsfx)
+				eatsfx->stop();
+			is_eatsfx_playing = false;
+		}
 	}
 }
 
@@ -150,10 +169,10 @@ void GardenMode::update(float elapsed) {
 	UpdateGameStatus(elapsed);
 	if (!is_game_over) {
 		UpdatePlayerMovement(elapsed);
-		UpdateEating(elapsed);
 		UpdateHiding(elapsed);
 		UpdateAudio();
 		UpdateFootSteps(elapsed);
+		UpdateEating(elapsed);
 	}
 
 	{ //update listener to camera position:
@@ -185,7 +204,7 @@ void GardenMode::UpdateAudio() {
 void GardenMode::UpdateFootSteps(float elapsed) {
 	static float cool_down = 15.f;
 	static float foot_distance = 0.f;
-	std::cout << cool_down << std::endl;
+	//std::cout << cool_down << std::endl;
 	begin_check = false;
 	if (has_spawned) {
 		glm::vec3 foot_move = glm::vec3(1.f, 0.f, 0.f);
@@ -193,17 +212,17 @@ void GardenMode::UpdateFootSteps(float elapsed) {
 		foot_distance += foot_move.x;
 
 		if (foot_distance >= -1 * FOOTSTEP_START / 2 && foot_distance < -1 * FOOTSTEP_START) {
-			footsteps->set_volume(0.5f);
+			footsteps->set_volume(0.7f);
 		}
 		else if (foot_distance >= -1 * FOOTSTEP_START && foot_distance < -1.5f * FOOTSTEP_START) {
 			begin_check = true;
 			footsteps->set_volume(1.0f);
 		}
 		else if (foot_distance >= -1.5* FOOTSTEP_START && foot_distance < -2 * FOOTSTEP_START) {
-			footsteps->set_volume(0.5f);
+			footsteps->set_volume(0.7f);
 		}
 		else if (foot_distance >= -2 * FOOTSTEP_START) {
-			footsteps->set_volume(0.1f);
+			footsteps->set_volume(0.5f);
 			has_spawned = false;
 		}
 		footsteps_pos += foot_move;
@@ -222,8 +241,10 @@ void GardenMode::UpdateFootSteps(float elapsed) {
 }
 
 void GardenMode::UpdateEating(float elapsed) {
-
+	static bool has_turned_of_text_eat = false;
 	if(eat.pressed && target >= 0) {
+		has_turned_of_text_eat = false;
+		PlayAudio(AudioStatus::Eat, true);
 		UpdateShowText(elapsed, TextStatus::Eating);
 		foods[target].lifetime -= elapsed;
 		if (foods[target].lifetime <= 0) {
@@ -237,17 +258,23 @@ void GardenMode::UpdateEating(float elapsed) {
 			target = -1;
 		}
 	} else {
-		UpdateShowText(elapsed, TextStatus::Default);
+		if (!has_turned_of_text_eat) {
+			UpdateShowText(elapsed, TextStatus::Default);
+			has_turned_of_text_eat = true;
+		}
+		PlayAudio(AudioStatus::Eat, false);
 	}
 }
 
 void GardenMode::UpdateHiding(float elapsed) {
+	static bool has_turned_of_text_hide = false;
 	static float distance = 0.f;
 	is_hiding = distance == 0 ? false : true;
 	is_hidden = false;
 	//std::cout << distance << std::endl;
 	//std::cout << player.transform->position.z;
 	if (hide.pressed) {
+		has_turned_of_text_hide = false;
 		UpdateShowText(elapsed, TextStatus::Hiding);
 		glm::vec3 player_move = glm::vec3(0.f, 0.f, -1.f);
 		player_move = player_move * HIDE_SPEED * elapsed;
@@ -258,9 +285,12 @@ void GardenMode::UpdateHiding(float elapsed) {
 			is_hidden = true;
 			UpdateShowText(elapsed, TextStatus::Hidden);
 		}
-		
 	}
 	else {
+		if (!has_turned_of_text_hide) {
+			UpdateShowText(elapsed, TextStatus::Default);
+			has_turned_of_text_hide = true;
+		}
 		glm::vec3 player_move = glm::vec3(0.f, 0.f, 1.f);
 		player_move = player_move * HIDE_SPEED * elapsed;
 		if (distance > 0.f) {
@@ -282,8 +312,7 @@ void GardenMode::UpdateShowText(float elapsed, TextStatus ts) {
 			eat_num_dot = eat_num_dot + 1 > 3 ? 0 : eat_num_dot + 1;
 		}
 		show_text = "Eating";
-		for (size_t i = 0; i < (size_t)eat_num_dot; i++)
-		{
+		for (size_t i = 0; i < (size_t)eat_num_dot; i++) {
 			show_text += " .";
 		}
 	}
@@ -387,12 +416,19 @@ void GardenMode::draw(glm::uvec2 const &drawable_size) {
 	camera->aspect = float(drawable_size.x) / float(drawable_size.y);
 
 	//set up light type and position for lit_color_texture_program:
-	// TODO: consider using the Light(s) in the scene to do this
+
 	glUseProgram(lit_color_texture_program->program);
 	glUniform1i(lit_color_texture_program->LIGHT_TYPE_int, 1);
-	glUniform3fv(lit_color_texture_program->LIGHT_DIRECTION_vec3, 1, glm::value_ptr(glm::vec3(0.0f, 0.0f,-1.0f)));
+	glUniform3fv(lit_color_texture_program->LIGHT_DIRECTION_vec3, 1, glm::value_ptr(glm::vec3(0.0f, 0.0f, -1.0f)));
 	glUniform3fv(lit_color_texture_program->LIGHT_ENERGY_vec3, 1, glm::value_ptr(glm::vec3(1.0f, 1.0f, 0.95f)));
 	glUseProgram(0);
+
+
+	//glUseProgram(lit_color_texture_program->program);
+	//glUniform1i(lit_color_texture_program->LIGHT_TYPE_int, light->type);
+	//glUniform3fv(lit_color_texture_program->LIGHT_DIRECTION_vec3, 1, glm::value_ptr(glm::eulerAngles(light->transform->rotation) * -1.0f));
+	//glUniform3fv(lit_color_texture_program->LIGHT_ENERGY_vec3, 1, glm::value_ptr(light->energy));
+	//glUseProgram(0);
 
 	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 	glClearDepth(1.0f); //1.0 is actually the default value to clear the depth buffer to, but FYI you can change it.
