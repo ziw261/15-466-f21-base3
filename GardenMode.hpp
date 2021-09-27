@@ -12,11 +12,13 @@
 #define PLAYER_SPEED 100.f
 #define CABBAGE_SIZE glm::vec3(35.f, 31.f, 41.f)
 #define CARROT_SIZE glm::vec3(5.f, 50.f, 7.f)
-#define CABBAGE_EATTIME 5.f
-#define CARROT_EATTIME 2.f
+#define CABBAGE_EATTIME 3.5f
+#define CARROT_EATTIME 1.5f
 #define HIDE_SPEED 20.f
 #define FOOTSTEP_START -270.f
 #define FOOTSTEP_SPEED 20.f
+#define FOOTSTEP_MINSPAWNTIME 15.f
+#define FOOTSTEP_SPAWNDIFF 10
 
 
 struct GardenMode : Mode {
@@ -40,7 +42,9 @@ struct GardenMode : Mode {
 		Default,
 		Eating,
 		Hiding,
-		Hidden
+		Hidden,
+		Lose,
+		Win
 	};
 
 	enum class AudioStatus {
@@ -75,6 +79,8 @@ struct GardenMode : Mode {
 	bool is_hiding = false;
 	bool is_hidden = false;
 	bool has_spawned = false;
+	bool begin_check = false;
+	bool is_game_over = false;
 
 	std::vector<Food> foods;
 	glm::vec3 footsteps_pos = glm::vec3(walls[0] + FOOTSTEP_START, 30.f, 16.5f);
@@ -84,10 +90,11 @@ struct GardenMode : Mode {
 	void UpdateEating(float elapsed);
 	void UpdateHiding(float elapsed);
 	void UpdateShowText(float elapsed, TextStatus ts);
-	void UpdateFootStep(float elapsed);
+	void UpdateFootSteps(float elapsed);
 	void UpdateAudio();
 	void PlayAudio(AudioStatus as, bool to_start);
 	bool CollisionTest(glm::vec2 pos);
+	void UpdateGameStatus(float elapsed);
 	glm::vec3 get_foot_position();
 
 	//music coming from the tip of the leg (as a demonstration):

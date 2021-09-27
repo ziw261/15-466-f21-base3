@@ -12,6 +12,9 @@
 
 #include <random>
 
+static std::mt19937 mt(std::random_device{}());
+
+
 GLuint garden_meshes_for_lit_color_texture_program = 0;
 Load< MeshBuffer > hexapod_meshes(LoadTagDefault, []() -> MeshBuffer const * {
 	MeshBuffer const *ret = new MeshBuffer(data_path("garden.pnct"));
@@ -41,31 +44,12 @@ Load< Sound::Sample > Footsteps(LoadTagDefault, []() -> Sound::Sample const * {
 });
 
 GardenMode::GardenMode() : scene(*hexapod_scene) {
-	//get pointers to leg for convenience:
-	//for (auto &transform : scene.transforms) {
-	//	if (transform.name == "Hip.FL") hip = &transform;
-	//	else if (transform.name == "UpperLeg.FL") upper_leg = &transform;
-	//	else if (transform.name == "LowerLeg.FL") lower_leg = &transform;
-	//}
-	//if (hip == nullptr) throw std::runtime_error("Hip not found.");
-	//if (upper_leg == nullptr) throw std::runtime_error("Upper leg not found.");
-	//if (lower_leg == nullptr) throw std::runtime_error("Lower leg not found.");
-
-	//hip_base_rotation = hip->rotation;
-	//upper_leg_base_rotation = upper_leg->rotation;
-	//lower_leg_base_rotation = lower_leg->rotation;
 
 	LoadGameObjects();
 
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
-
-	//start music loop playing:
-	// (note: position will be over-ridden in update())
-	//leg_tip_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
-	has_spawned = true;
-	PlayAudio(AudioStatus::Footsteps, true);
 }
 
 GardenMode::~GardenMode() {
@@ -74,7 +58,7 @@ GardenMode::~GardenMode() {
 void GardenMode::PlayAudio(AudioStatus as, bool to_start) {
 	if (as == AudioStatus::Footsteps) {
 		if (to_start)
-			footsteps = Sound::loop_3D(*Footsteps, 1.0f, get_foot_position(), 3.0f);
+			footsteps = Sound::loop_3D(*Footsteps, 0.3f, get_foot_position(), 3.0f);
 		else
 			footsteps->stop();
 	}
@@ -163,16 +147,14 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 }
 
 void GardenMode::update(float elapsed) {
-
-	UpdatePlayerMovement(elapsed);
-	UpdateEating(elapsed);
-	UpdateHiding(elapsed);
-	UpdateFootStep(elapsed);
-
-	UpdateAudio();
-	//std::cout << is_hidden << std::endl;
-	//move sound to follow leg tip position:
-	//leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
+	UpdateGameStatus(elapsed);
+	if (!is_game_over) {
+		UpdatePlayerMovement(elapsed);
+		UpdateEating(elapsed);
+		UpdateHiding(elapsed);
+		UpdateAudio();
+		UpdateFootSteps(elapsed);
+	}
 
 	{ //update listener to camera position:
 		glm::mat4x3 frame = camera->transform->make_local_to_parent();
@@ -182,15 +164,61 @@ void GardenMode::update(float elapsed) {
 	}
 }
 
-void GardenMode::UpdateAudio() {
-	footsteps->set_position(get_foot_position());
+void GardenMode::UpdateGameStatus(float elapsed) {
+	if (begin_check && !is_hidden) {
+		UpdateShowText(elapsed, TextStatus::Lose);
+		footsteps->stop();
+		is_game_over = true;
+	}
+	else if (foods.size() <= 0) {
+		UpdateShowText(elapsed, TextStatus::Win);
+		footsteps->stop();
+		is_game_over = true;
+	}
 }
 
-void GardenMode::UpdateFootStep(float elapsed) {
-	if (!has_spawned) return;
-	glm::vec3 foot_move = glm::vec3(1.f, 0.f, 0.f);
-	foot_move = foot_move * elapsed * FOOTSTEP_SPEED;
-	footsteps_pos += foot_move;
+void GardenMode::UpdateAudio() {
+	if (footsteps)
+		footsteps->set_position(get_foot_position());
+}
+
+void GardenMode::UpdateFootSteps(float elapsed) {
+	static float cool_down = 15.f;
+	static float foot_distance = 0.f;
+	std::cout << cool_down << std::endl;
+	begin_check = false;
+	if (has_spawned) {
+		glm::vec3 foot_move = glm::vec3(1.f, 0.f, 0.f);
+		foot_move = foot_move * elapsed * FOOTSTEP_SPEED;
+		foot_distance += foot_move.x;
+
+		if (foot_distance >= -1 * FOOTSTEP_START / 2 && foot_distance < -1 * FOOTSTEP_START) {
+			footsteps->set_volume(0.5f);
+		}
+		else if (foot_distance >= -1 * FOOTSTEP_START && foot_distance < -1.5f * FOOTSTEP_START) {
+			begin_check = true;
+			footsteps->set_volume(1.0f);
+		}
+		else if (foot_distance >= -1.5* FOOTSTEP_START && foot_distance < -2 * FOOTSTEP_START) {
+			footsteps->set_volume(0.5f);
+		}
+		else if (foot_distance >= -2 * FOOTSTEP_START) {
+			footsteps->set_volume(0.1f);
+			has_spawned = false;
+		}
+		footsteps_pos += foot_move;
+	} else {
+		if (cool_down <= 0) {
+			has_spawned = true;
+			PlayAudio(AudioStatus::Footsteps, true);
+			foot_distance = 0.f;
+			footsteps_pos = glm::vec3(walls[0] + FOOTSTEP_START, 30.f, 16.5f);
+			cool_down = mt() % FOOTSTEP_SPAWNDIFF + FOOTSTEP_MINSPAWNTIME;
+		}
+		else 
+			cool_down -= elapsed;
+		//footsteps->set_volume(0.0f);
+	}
 }
 
 void GardenMode::UpdateEating(float elapsed) {
@@ -280,7 +308,12 @@ void GardenMode::UpdateShowText(float elapsed, TextStatus ts) {
 	else if (ts == TextStatus::Hidden) {
 		show_text = "Hidden";
 	}
-
+	else if (ts == TextStatus::Lose) {
+		show_text = "You've been caught. Press R to try again.";
+	}
+	else if (ts == TextStatus::Win) {
+		show_text = "Nice job. Press R to play again.";
+	}
 }
 
 void GardenMode::UpdatePlayerMovement(float elapsed) {
@@ -396,7 +429,7 @@ void GardenMode::draw(glm::uvec2 const &drawable_size) {
 
 glm::vec3 GardenMode::get_foot_position() {
 	//the vertex position here was read from the model in blender:
-	std::cout << footsteps_pos.x << std::endl;
+	//std::cout << footsteps_pos.x << std::endl;
 
 	return footsteps_pos;
 }
