@@ -18,6 +18,8 @@ Sources:
 
 "Footsteps_Walking Boot_Mud and Twigs.wav" by omnisounddesign of Freesound.org\
 "Chewing, Carrot, A.wav" by InspectorJ (www.jshaw.co.uk) of Freesound.org\
+"tada1.wav" by jobro of Freesound.org\
+" Fail Sound Effect - Accoustic Guitar" by florianreichelt of Freesound.org\
 
 
 This game was built with [NEST](NEST.md).
