@@ -14,6 +14,7 @@
 #define CARROT_SIZE glm::vec3(5.f, 50.f, 7.f)
 #define CABBAGE_EATTIME 5.f
 #define CARROT_EATTIME 2.f
+#define HIDE_SPEED 20.f
 
 
 struct GardenMode : Mode {
@@ -35,7 +36,8 @@ struct GardenMode : Mode {
 
 	enum class TextStatus {
 		Default,
-		Eating
+		Eating,
+		Hiding,
 	};
 
 	GardenMode();
@@ -52,7 +54,7 @@ struct GardenMode : Mode {
 	struct Button {
 		uint8_t downs = 0;
 		uint8_t pressed = 0;
-	} left, right, down, up, eat;
+	} left, right, down, up, eat, hide;
 
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
@@ -69,6 +71,7 @@ struct GardenMode : Mode {
 	void LoadGameObjects();
 	void UpdatePlayerMovement(float elapsed);
 	void UpdateEating(float elapsed);
+	void UpdateHiding(float elapsed);
 	void UpdateShowText(float elapsed, TextStatus ts);
 	bool CollisionTest(glm::vec2 pos);
 

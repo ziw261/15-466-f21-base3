@@ -120,6 +120,10 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 			eat.downs += 1;
 			eat.pressed = true;
 			return true;
+		} else if (evt.key.keysym.sym == SDLK_RETURN) {
+			hide.downs += 1;
+			hide.pressed = true;
+			return true;
 		}
 
 	} else if (evt.type == SDL_KEYUP) {
@@ -138,6 +142,9 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 		} else if (evt.key.keysym.sym == SDLK_SPACE) {
 			eat.pressed = false;
 			return true;
+		} else if (evt.key.keysym.sym == SDLK_RETURN) {
+			hide.pressed = false;
+			return true;
 		}
 	}
 
@@ -148,6 +155,7 @@ void GardenMode::update(float elapsed) {
 
 	UpdatePlayerMovement(elapsed);
 	UpdateEating(elapsed);
+	UpdateHiding(elapsed);
 
 	//move sound to follow leg tip position:
 	//leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
@@ -180,6 +188,13 @@ void GardenMode::UpdateEating(float elapsed) {
 	}
 }
 
+void GardenMode::UpdateHiding(float elapsed) {
+	glm::vec3 player_move = glm::vec3(0.f, 0.f, 0.f);
+	if (hide.pressed) player_move.z -= 1.0f;
+	player_move = player_move * HIDE_SPEED * elapsed;
+	player.transform->position += player_move;
+}
+
 void GardenMode::UpdateShowText(float elapsed, TextStatus ts) {
 	if (ts == TextStatus::Eating) {
 		static int num_dot = 0;
@@ -190,7 +205,7 @@ void GardenMode::UpdateShowText(float elapsed, TextStatus ts) {
 			num_dot = num_dot + 1 > 3 ? 0 : num_dot + 1;
 		}
 		show_text = "Eating";
-		for (size_t i = 0; i < num_dot; i++)
+		for (size_t i = 0; i < (size_t)num_dot; i++)
 		{
 			show_text += " .";
 		}
