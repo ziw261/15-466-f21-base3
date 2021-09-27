@@ -47,6 +47,14 @@ Load< Sound::Sample > EatSFX(LoadTagDefault, []() -> Sound::Sample const* {
 	return new Sound::Sample(data_path("Eat.opus"));
 });
 
+Load < Sound::Sample > WinSFX(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("Win.opus"));
+});
+
+Load < Sound::Sample > FailSFX(LoadTagDefault, []() -> Sound::Sample const* {
+	return new Sound::Sample(data_path("Fail.opus"));
+});
+
 GardenMode::GardenMode() : scene(*hexapod_scene) {
 
 	LoadGameObjects();
@@ -57,12 +65,16 @@ GardenMode::GardenMode() : scene(*hexapod_scene) {
 
 	light = &scene.lights.front();
 	assert(light != nullptr);
+
+	has_win_played = false;
+	has_lose_played = false;
 }
 
 GardenMode::~GardenMode() {
 }
 
 void GardenMode::PlayAudio(AudioStatus as, bool to_start) {
+
 	if (as == AudioStatus::Footsteps) {
 		if (to_start)
 			footsteps = Sound::loop_3D(*Footsteps, 0.5f, get_foot_position(), 100.0f);
@@ -79,6 +91,23 @@ void GardenMode::PlayAudio(AudioStatus as, bool to_start) {
 			if (eatsfx)
 				eatsfx->stop();
 			is_eatsfx_playing = false;
+		}
+	}
+	else if (as == AudioStatus::Win) {
+		if (!has_win_played && to_start) {
+			winsfx = Sound::play_3D(*WinSFX, 1.0f, camera->transform->position, 5.0f);
+			has_win_played = true;
+		}
+		else if (!to_start) {
+			winsfx->stop();
+		}
+	}
+	else if (as == AudioStatus::Fail) {
+		if (!has_lose_played && to_start) {
+			failsfx = Sound::play_3D(*FailSFX, 1.0f, camera->transform->position, 5.0f);
+			has_lose_played = true;
+		} else if (!to_start) {
+			failsfx->stop();
 		}
 	}
 }
@@ -165,6 +194,17 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 	return false;
 }
 
+void GardenMode::StopAllAudio() {
+	if (footsteps)
+		footsteps->stop();
+	if (eatsfx)
+		eatsfx->stop();
+	//if (winsfx)
+	//	winsfx->stop();
+	//if (failsfx)
+	//	failsfx->stop();
+}
+
 void GardenMode::update(float elapsed) {
 	UpdateGameStatus(elapsed);
 	if (!is_game_over) {
@@ -173,6 +213,9 @@ void GardenMode::update(float elapsed) {
 		UpdateAudio();
 		UpdateFootSteps(elapsed);
 		UpdateEating(elapsed);
+	}
+	else {
+		StopAllAudio();
 	}
 
 	{ //update listener to camera position:
@@ -187,11 +230,13 @@ void GardenMode::UpdateGameStatus(float elapsed) {
 	if (begin_check && !is_hidden) {
 		UpdateShowText(elapsed, TextStatus::Lose);
 		footsteps->stop();
+		PlayAudio(AudioStatus::Fail, true);
 		is_game_over = true;
 	}
 	else if (foods.size() <= 0) {
 		UpdateShowText(elapsed, TextStatus::Win);
 		footsteps->stop();
+		PlayAudio(AudioStatus::Win, true);
 		is_game_over = true;
 	}
 }
@@ -222,7 +267,7 @@ void GardenMode::UpdateFootSteps(float elapsed) {
 			footsteps->set_volume(0.7f);
 		}
 		else if (foot_distance >= -2 * FOOTSTEP_START) {
-			footsteps->set_volume(0.5f);
+			footsteps->set_volume(0.0f);
 			has_spawned = false;
 		}
 		footsteps_pos += foot_move;
@@ -451,12 +496,12 @@ void GardenMode::draw(glm::uvec2 const &drawable_size) {
 
 		constexpr float H = 0.09f;
 		lines.draw_text(show_text,
-			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
+			glm::vec3(-0.2f + 0.1f * H, -1.0 + 0.1f * H, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
 		float ofs = 2.0f / drawable_size.y;
 		lines.draw_text(show_text,
-			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
+			glm::vec3(-0.2f + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
 	}

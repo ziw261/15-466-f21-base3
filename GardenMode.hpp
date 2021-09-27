@@ -50,7 +50,9 @@ struct GardenMode : Mode {
 	enum class AudioStatus {
 		None,
 		Footsteps,
-		Eat
+		Eat,
+		Win,
+		Fail
 	};
 
 	GardenMode();
@@ -82,6 +84,8 @@ struct GardenMode : Mode {
 	bool has_spawned = false;
 	bool begin_check = false;
 	bool is_game_over = false;
+	bool has_win_played = false;
+	bool has_lose_played = false;
 
 	std::vector<Food> foods;
 	glm::vec3 footsteps_pos = glm::vec3(walls[0] + FOOTSTEP_START, 30.f, 16.5f);
@@ -99,11 +103,14 @@ struct GardenMode : Mode {
 	void PlayAudio(AudioStatus as, bool to_start);
 	bool CollisionTest(glm::vec2 pos);
 	void UpdateGameStatus(float elapsed);
+	void StopAllAudio();
 	glm::vec3 get_foot_position();
 
 	//audio
 	std::shared_ptr< Sound::PlayingSample > footsteps;
 	std::shared_ptr< Sound::PlayingSample > eatsfx;
+	std::shared_ptr< Sound::PlayingSample > winsfx;
+	std::shared_ptr< Sound::PlayingSample > failsfx;
 	
 	//camera:
 	Scene::Camera *camera = nullptr;
