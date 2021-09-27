@@ -36,8 +36,8 @@ Load< Scene > hexapod_scene(LoadTagDefault, []() -> Scene const * {
 	});
 });
 
-Load< Sound::Sample > dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const * {
-	return new Sound::Sample(data_path("dusty-floor.opus"));
+Load< Sound::Sample > Footsteps(LoadTagDefault, []() -> Sound::Sample const * {
+	return new Sound::Sample(data_path("Footsteps.opus"));
 });
 
 GardenMode::GardenMode() : scene(*hexapod_scene) {
@@ -64,9 +64,20 @@ GardenMode::GardenMode() : scene(*hexapod_scene) {
 	//start music loop playing:
 	// (note: position will be over-ridden in update())
 	//leg_tip_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
+	has_spawned = true;
+	PlayAudio(AudioStatus::Footsteps, true);
 }
 
 GardenMode::~GardenMode() {
+}
+
+void GardenMode::PlayAudio(AudioStatus as, bool to_start) {
+	if (as == AudioStatus::Footsteps) {
+		if (to_start)
+			footsteps = Sound::loop_3D(*Footsteps, 1.0f, get_foot_position(), 3.0f);
+		else
+			footsteps->stop();
+	}
 }
 
 void GardenMode::LoadGameObjects() {
@@ -156,7 +167,10 @@ void GardenMode::update(float elapsed) {
 	UpdatePlayerMovement(elapsed);
 	UpdateEating(elapsed);
 	UpdateHiding(elapsed);
+	UpdateFootStep(elapsed);
 
+	UpdateAudio();
+	//std::cout << is_hidden << std::endl;
 	//move sound to follow leg tip position:
 	//leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
 
@@ -166,6 +180,17 @@ void GardenMode::update(float elapsed) {
 		glm::vec3 at = frame[3];
 		Sound::listener.set_position_right(at, right, 1.0f / 60.0f);
 	}
+}
+
+void GardenMode::UpdateAudio() {
+	footsteps->set_position(get_foot_position());
+}
+
+void GardenMode::UpdateFootStep(float elapsed) {
+	if (!has_spawned) return;
+	glm::vec3 foot_move = glm::vec3(1.f, 0.f, 0.f);
+	foot_move = foot_move * elapsed * FOOTSTEP_SPEED;
+	footsteps_pos += foot_move;
 }
 
 void GardenMode::UpdateEating(float elapsed) {
@@ -189,23 +214,47 @@ void GardenMode::UpdateEating(float elapsed) {
 }
 
 void GardenMode::UpdateHiding(float elapsed) {
-	glm::vec3 player_move = glm::vec3(0.f, 0.f, 0.f);
-	if (hide.pressed) player_move.z -= 1.0f;
-	player_move = player_move * HIDE_SPEED * elapsed;
-	player.transform->position += player_move;
+	static float distance = 0.f;
+	is_hiding = distance == 0 ? false : true;
+	is_hidden = false;
+	//std::cout << distance << std::endl;
+	//std::cout << player.transform->position.z;
+	if (hide.pressed) {
+		UpdateShowText(elapsed, TextStatus::Hiding);
+		glm::vec3 player_move = glm::vec3(0.f, 0.f, -1.f);
+		player_move = player_move * HIDE_SPEED * elapsed;
+		if (distance < player.size.z) {
+			player.transform->position += player_move;
+			distance += std::abs(player_move.z);
+		} else {
+			is_hidden = true;
+			UpdateShowText(elapsed, TextStatus::Hidden);
+		}
+		
+	}
+	else {
+		glm::vec3 player_move = glm::vec3(0.f, 0.f, 1.f);
+		player_move = player_move * HIDE_SPEED * elapsed;
+		if (distance > 0.f) {
+			player.transform->position += player_move;
+			distance -= player_move.z;
+		}
+		else
+			distance = 0.f;
+	}
 }
 
 void GardenMode::UpdateShowText(float elapsed, TextStatus ts) {
 	if (ts == TextStatus::Eating) {
-		static int num_dot = 0;
-		static float cool_down = 0.0f;
-		cool_down += elapsed;
-		if (cool_down >= .4f) {
-			cool_down = 0.0f;
-			num_dot = num_dot + 1 > 3 ? 0 : num_dot + 1;
+		static int eat_num_dot = 0;
+		static float eat_cool_down = 0.0f;
+		eat_cool_down += elapsed;
+		if (eat_cool_down >= .4f) {
+			eat_cool_down = 0.0f;
+			eat_num_dot = eat_num_dot + 1 > 3 ? 0 : eat_num_dot + 1;
 		}
 		show_text = "Eating";
-		for (size_t i = 0; i < (size_t)num_dot; i++)
+		for (size_t i = 0; i < (size_t)eat_num_dot; i++)
 		{
 			show_text += " .";
 		}
@@ -213,10 +262,29 @@ void GardenMode::UpdateShowText(float elapsed, TextStatus ts) {
 	else if (ts == TextStatus::Default) {
 		show_text = "";
 	}
+	else if (ts == TextStatus::Hiding) {
+		static int hide_num_dot = 0;
+		static float hide_cool_down = 0.0f;
+		hide_cool_down += elapsed;
+		if (hide_cool_down >= .4f)
+		{
+			hide_cool_down = 0.0f;
+			hide_num_dot = hide_num_dot + 1 > 3 ? 0 : hide_num_dot + 1;
+		}
+		show_text = "Hiding";
+		for (size_t i = 0; i < (size_t)hide_num_dot; i++)
+		{
+			show_text += " .";
+		}
+	}
+	else if (ts == TextStatus::Hidden) {
+		show_text = "Hidden";
+	}
 
 }
 
 void GardenMode::UpdatePlayerMovement(float elapsed) {
+	if (is_hiding) return;
 	glm::vec2 player_move = glm::vec2(0.0f);
 	if (up.pressed) player_move.y += 1.0f;
 	if (left.pressed) player_move.x -= 1.0f;
@@ -326,7 +394,9 @@ void GardenMode::draw(glm::uvec2 const &drawable_size) {
 	GL_ERRORS();
 }
 
-//glm::vec3 GardenMode::get_leg_tip_position() {
-//	//the vertex position here was read from the model in blender:
-//	return lower_leg->make_local_to_world() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
-//}
+glm::vec3 GardenMode::get_foot_position() {
+	//the vertex position here was read from the model in blender:
+	std::cout << footsteps_pos.x << std::endl;
+
+	return footsteps_pos;
+}

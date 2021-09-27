@@ -15,13 +15,15 @@
 #define CABBAGE_EATTIME 5.f
 #define CARROT_EATTIME 2.f
 #define HIDE_SPEED 20.f
+#define FOOTSTEP_START -270.f
+#define FOOTSTEP_SPEED 20.f
 
 
 struct GardenMode : Mode {
 
 	struct Player {
 		Scene::Transform* transform = nullptr;
-		glm::vec3 size = glm::vec3(20.f, 10.f, 10.f);
+		glm::vec3 size = glm::vec3(20.f, 10.f, 20.f);
 		Player() {}
 		Player(Scene::Transform* trans) : transform(trans) {}
 	};
@@ -38,6 +40,12 @@ struct GardenMode : Mode {
 		Default,
 		Eating,
 		Hiding,
+		Hidden
+	};
+
+	enum class AudioStatus {
+		None,
+		Footsteps
 	};
 
 	GardenMode();
@@ -64,19 +72,26 @@ struct GardenMode : Mode {
 	int target = -1;
 	float walls[4];
 	std::string show_text = "";
+	bool is_hiding = false;
+	bool is_hidden = false;
+	bool has_spawned = false;
 
 	std::vector<Food> foods;
-	//glm::vec3 get_leg_tip_position();
+	glm::vec3 footsteps_pos = glm::vec3(walls[0] + FOOTSTEP_START, 30.f, 16.5f);
 
 	void LoadGameObjects();
 	void UpdatePlayerMovement(float elapsed);
 	void UpdateEating(float elapsed);
 	void UpdateHiding(float elapsed);
 	void UpdateShowText(float elapsed, TextStatus ts);
+	void UpdateFootStep(float elapsed);
+	void UpdateAudio();
+	void PlayAudio(AudioStatus as, bool to_start);
 	bool CollisionTest(glm::vec2 pos);
+	glm::vec3 get_foot_position();
 
 	//music coming from the tip of the leg (as a demonstration):
-	std::shared_ptr< Sound::PlayingSample > leg_tip_loop;
+	std::shared_ptr< Sound::PlayingSample > footsteps;
 	
 	//camera:
 	Scene::Camera *camera = nullptr;
