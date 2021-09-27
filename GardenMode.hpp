@@ -33,6 +33,11 @@ struct GardenMode : Mode {
 		Food(Scene::Transform* trans, glm::vec3 food_size, float t) : transform(trans), size(food_size), lifetime(t) {}
 	};
 
+	enum class TextStatus {
+		Default,
+		Eating
+	};
+
 	GardenMode();
 	virtual ~GardenMode();
 
@@ -47,20 +52,24 @@ struct GardenMode : Mode {
 	struct Button {
 		uint8_t downs = 0;
 		uint8_t pressed = 0;
-	} left, right, down, up;
+	} left, right, down, up, eat;
 
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
 
 	Player player;
 	glm::quat default_rot;
+	int target = -1;
 	float walls[4];
+	std::string show_text = "";
 
 	std::vector<Food> foods;
 	//glm::vec3 get_leg_tip_position();
 
 	void LoadGameObjects();
 	void UpdatePlayerMovement(float elapsed);
+	void UpdateEating(float elapsed);
+	void UpdateShowText(float elapsed, TextStatus ts);
 	bool CollisionTest(glm::vec2 pos);
 
 	//music coming from the tip of the leg (as a demonstration):

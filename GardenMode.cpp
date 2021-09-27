@@ -116,7 +116,12 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 			down.downs += 1;
 			down.pressed = true;
 			return true;
+		} else if (evt.key.keysym.sym == SDLK_SPACE) {
+			eat.downs += 1;
+			eat.pressed = true;
+			return true;
 		}
+
 	} else if (evt.type == SDL_KEYUP) {
 		if (evt.key.keysym.sym == SDLK_a) {
 			left.pressed = false;
@@ -130,6 +135,9 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 		} else if (evt.key.keysym.sym == SDLK_s) {
 			down.pressed = false;
 			return true;
+		} else if (evt.key.keysym.sym == SDLK_SPACE) {
+			eat.pressed = false;
+			return true;
 		}
 	}
 
@@ -139,6 +147,7 @@ bool GardenMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_siz
 void GardenMode::update(float elapsed) {
 
 	UpdatePlayerMovement(elapsed);
+	UpdateEating(elapsed);
 
 	//move sound to follow leg tip position:
 	//leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
@@ -149,6 +158,47 @@ void GardenMode::update(float elapsed) {
 		glm::vec3 at = frame[3];
 		Sound::listener.set_position_right(at, right, 1.0f / 60.0f);
 	}
+}
+
+void GardenMode::UpdateEating(float elapsed) {
+
+	if(eat.pressed && target >= 0) {
+		UpdateShowText(elapsed, TextStatus::Eating);
+		foods[target].lifetime -= elapsed;
+		if (foods[target].lifetime <= 0) {
+			for (auto it = scene.drawables.begin(); it != scene.drawables.end(); ++it) {
+				if ((*it).transform->name == foods[target].transform->name) {
+					scene.drawables.erase(it);
+				}
+			}
+			std::swap(foods[target], foods[foods.size() - 1]);
+			foods.pop_back();
+			target = -1;
+		}
+	} else {
+		UpdateShowText(elapsed, TextStatus::Default);
+	}
+}
+
+void GardenMode::UpdateShowText(float elapsed, TextStatus ts) {
+	if (ts == TextStatus::Eating) {
+		static int num_dot = 0;
+		static float cool_down = 0.0f;
+		cool_down += elapsed;
+		if (cool_down >= .4f) {
+			cool_down = 0.0f;
+			num_dot = num_dot + 1 > 3 ? 0 : num_dot + 1;
+		}
+		show_text = "Eating";
+		for (size_t i = 0; i < num_dot; i++)
+		{
+			show_text += " .";
+		}
+	}
+	else if (ts == TextStatus::Default) {
+		show_text = "";
+	}
+
 }
 
 void GardenMode::UpdatePlayerMovement(float elapsed) {
@@ -198,16 +248,22 @@ void GardenMode::UpdatePlayerMovement(float elapsed) {
 }
 
 bool GardenMode::CollisionTest(glm::vec2 pos) {
-	for (auto& food : foods) {
+	bool has_collide = false;
+	float min_collision = FLT_MAX;
+	for (size_t i = 0; i < foods.size(); i++) {
+		auto& food = foods[i];
 		float min_dist = player.size.x * 0.5f + food.size.x * 0.5f;
 		//std::cout << min_dist << std::endl;
 		glm::vec2 position = food.transform->position;
 		//if (food.transform->name == "cabbage.002")
 		//	std::cout << position.x << " " << position.y << std::endl;
-		if (glm::distance(position, pos) <= min_dist)
-			return true;
+		float dist = glm::distance(position, pos);
+		if (dist <= min_dist) {
+			has_collide = true;
+			if (dist < min_collision) target = static_cast<int>(i);
+		}
 	}
-	return false;
+	return has_collide;
 }
 
 void GardenMode::draw(glm::uvec2 const &drawable_size) {
@@ -242,12 +298,12 @@ void GardenMode::draw(glm::uvec2 const &drawable_size) {
 		));
 
 		constexpr float H = 0.09f;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		lines.draw_text(show_text,
 			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
 		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		lines.draw_text(show_text,
 			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
